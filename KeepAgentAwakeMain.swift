@@ -13,7 +13,7 @@ struct KeepAgentAwakeApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {}
             CommandGroup(after: .appInfo) {
-                Button("关于 KeepAgentAwake…") {
+                Button(tr("About KeepAgentAwake…")) {
                     appDelegate.showAboutWindow()
                 }
             }

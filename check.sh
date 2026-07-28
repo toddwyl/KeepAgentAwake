@@ -14,6 +14,7 @@ readonly info_plist="$app/Contents/Info.plist"
 
 /usr/bin/plutil -lint "$info_plist" >/dev/null
 /usr/bin/codesign --verify --deep --strict "$app"
+/usr/bin/python3 "$repo_root/tests/check_localizations.py"
 
 plist_min=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$info_plist")
 binary_min=$(/usr/bin/xcrun vtool -show-build "$executable" |

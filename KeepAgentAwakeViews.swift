@@ -1,16 +1,16 @@
 import AppKit
 import SwiftUI
 
-/// 熄屏空闲时间预设（秒）。`0` = 永不因空闲自动熄屏（仍保持「永不休眠」防睡眠）
+/// Idle display-off presets in seconds. `0` disables automatic display-off.
 private let idlePresets: [Int] = [0, 1, 5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600]
 
 private func idleChoices(current: Int) -> [Int] {
-    var s = Set(idlePresets)
-    s.insert(max(0, current))
-    return s.sorted()
+    var choices = Set(idlePresets)
+    choices.insert(max(0, current))
+    return choices.sorted()
 }
 
-/// 将 SwiftUI 窗口绑定到 `AppDelegate`，供菜单栏「打开主窗口」可靠前置，并启用 `hidesOnDeactivate`
+/// Connects the SwiftUI window to AppDelegate for reliable show/hide behavior.
 private struct MainWindowAccessor: NSViewRepresentable {
     @EnvironmentObject var app: AppDelegate
 
@@ -64,7 +64,7 @@ struct MainWindowView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("KeepAgentAwake")
                     .font(.title2.weight(.semibold))
-                Text("菜单栏 · 永不休眠 · 可定时空闲熄屏")
+                Text(tr("Menu bar · Never Sleep · Timed idle display-off"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -74,13 +74,13 @@ struct MainWindowView: View {
 
     private var modeCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("当前状态")
+            Text(tr("Current Status"))
                 .font(.headline)
             HStack {
                 statusBadge
                 Spacer()
                 if let start = app.modeStartTime {
-                    Text("已运行 \(app.formattedDuration(since: start))")
+                    Text(trf("Running %@", app.formattedDuration(since: start)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -108,14 +108,15 @@ struct MainWindowView: View {
     }
 
     private var quickActions: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("快捷操作")
+        let actionTitle = app.isProtectionOn ? tr("Restore Normal") : tr("Never Sleep")
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(tr("Quick Actions"))
                 .font(.headline)
-            Button(app.isProtectionOn ? "恢复正常" : "永不休眠") {
+            Button(actionTitle) {
                 app.toggleProtectionFromUI()
             }
             .keyboardShortcut("p", modifiers: [.command, .shift])
-            Text("开启后为「永不休眠」；再点此按钮为「恢复正常」（系统默认电源行为）。⌘⇧P 切换 · ⌘⌃⎋ 紧急恢复")
+            Text(tr("Enable Never Sleep; click again to Restore Normal and return to the default power policy. ⌘⇧P toggles · ⌘⌃⎋ emergency restore"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -123,14 +124,14 @@ struct MainWindowView: View {
 
     private var settingsSummary: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("设置")
+            Text(tr("Settings"))
                 .font(.headline)
-            Toggle("状态栏显示计时器", isOn: $app.showTimer)
+            Toggle(tr("Show timer in menu bar"), isOn: $app.showTimer)
             Divider().padding(.vertical, 4)
-            Toggle("空闲后自动熄屏（推荐，可减轻屏幕闪烁）", isOn: $app.smartIdleDisplayOff)
-                .help("关闭时使用经典「强制显示器常亮」。开启时可设熄屏空闲时间，含「永不」。")
+            Toggle(tr("Turn display off when idle (recommended)"), isOn: $app.smartIdleDisplayOff)
+                .help(tr("When disabled, classic mode keeps the display on. When enabled, choose an idle display-off time, including Never."))
             HStack {
-                Text("熄屏空闲时间")
+                Text(tr("Display-off idle time"))
                 Spacer()
                 Picker("", selection: $app.idleTimeoutSeconds) {
                     ForEach(idleChoices(current: app.idleTimeoutSeconds), id: \.self) { sec in
@@ -140,30 +141,30 @@ struct MainWindowView: View {
                 .frame(maxWidth: 240)
             }
             .disabled(!app.smartIdleDisplayOff)
-            Toggle("空闲熄屏时自动降低键盘背光", isOn: $app.dimKeyboardOnIdleOff)
+            Toggle(tr("Dim keyboard backlight when display turns off"), isOn: $app.dimKeyboardOnIdleOff)
                 .disabled(!app.smartIdleDisplayOff || app.idleTimeoutSeconds == 0)
-            Toggle("合盖时关闭系统睡眠（pmset disablesleep）", isOn: $app.keepAwakeOnLidClose)
-                .help("开启永不休眠后，将请求管理员密码执行 pmset -a disablesleep 1；恢复正常时尝试执行 disablesleep 0。")
-            Text("熄屏空闲为「永不」时不会自动关显示器。键盘背光在需要时会自动触发若干次减小。合盖选项依赖系统密码授权。")
+            Toggle(tr("Prevent sleep with lid closed (pmset disablesleep)"), isOn: $app.keepAwakeOnLidClose)
+                .help(tr("After Never Sleep is enabled, macOS will ask for an administrator password to run pmset -a disablesleep 1; Restore Normal attempts disablesleep 0."))
+            Text(tr("When display-off is set to Never, displays do not turn off automatically. Keyboard backlight dimming uses simulated key presses. Lid-close protection requires administrator authorization."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("在菜单栏聚焦图标") {
+            Button(tr("Focus menu bar icon")) {
                 app.focusStatusItem()
             }
             Divider().padding(.vertical, 8)
-            Button("退出 KeepAgentAwake") {
+            Button(tr("Quit KeepAgentAwake")) {
                 app.quitApplication()
             }
             .keyboardShortcut("q", modifiers: [.command])
         }
     }
 
-    private static func labelForIdleSeconds(_ sec: Int) -> String {
-        if sec == 0 { return "永不（不因空闲熄屏）" }
-        if sec < 60 { return "\(sec) 秒" }
-        if sec % 3600 == 0 { return "\(sec / 3600) 小时" }
-        if sec % 60 == 0 { return "\(sec / 60) 分钟" }
-        return "\(sec) 秒"
+    private static func labelForIdleSeconds(_ seconds: Int) -> String {
+        if seconds == 0 { return tr("Never (do not turn display off when idle)") }
+        if seconds < 60 { return trf("%d sec", seconds) }
+        if seconds % 3600 == 0 { return trf("%d hr", seconds / 3600) }
+        if seconds % 60 == 0 { return trf("%d min", seconds / 60) }
+        return trf("%d sec", seconds)
     }
 }

@@ -1,9 +1,9 @@
 #!/bin/bash
-# 构建 KeepAgentAwake（SwiftUI 窗口 + 菜单栏 + App 图标）
+# Build KeepAgentAwake (SwiftUI window + menu bar app)
 
 set -e
 
-echo "🔨 开始构建 KeepAgentAwake…"
+echo "🔨 Building KeepAgentAwake…"
 
 APP_NAME="KeepAgentAwake"
 BUILD_DIR="build"
@@ -17,8 +17,9 @@ TARGET_ARCH=$(uname -m)
 rm -rf "$BUILD_DIR"
 mkdir -p "$MACOS_DIR"
 mkdir -p "$RESOURCES_DIR"
+cp -RX Resources/en.lproj Resources/ko.lproj "$RESOURCES_DIR/"
 
-echo "📦 编译 Swift…"
+echo "📦 Compiling Swift…"
 swiftc -O -o "$MACOS_DIR/$APP_NAME" \
     -target "$TARGET_ARCH-apple-macos$DEPLOYMENT_TARGET" \
     -framework Cocoa \
@@ -27,6 +28,7 @@ swiftc -O -o "$MACOS_DIR/$APP_NAME" \
     -framework UserNotifications \
     -framework IOKit \
     -parse-as-library \
+    Localization.swift \
     KeepAgentAwakeMain.swift \
     KeepAgentAwakeViews.swift \
     KeepAgentAwakeDelegate.swift
@@ -39,12 +41,12 @@ codesign --force --deep --sign - "$APP_DIR"
 if [ -f "$MACOS_DIR/$APP_NAME" ]; then
     SIZE=$(du -h "$MACOS_DIR/$APP_NAME" | awk '{print $1}')
     echo ""
-    echo "✅ 构建完成！"
-    echo "📍 应用位置: $APP_DIR"
-    echo "📦 二进制大小: $SIZE"
+    echo "✅ Build complete"
+    echo "📍 App: $APP_DIR"
+    echo "📦 Binary size: $SIZE"
     echo ""
-    echo "🚀 运行: open \"$APP_DIR\""
+    echo "🚀 Run: open \"$APP_DIR\""
 else
-    echo "❌ 构建失败！"
+    echo "❌ Build failed"
     exit 1
 fi

@@ -121,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         DispatchQueue.main.async {
             NSApp.activate(ignoringOtherApps: true)
         }
-        print("🚀 KeepAgentAwake 已启动")
+        print("🚀 KeepAgentAwake launched")
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -194,38 +194,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     var statusDetailText: String {
         guard isProtectionOn else {
-            return "系统默认：未启用永不休眠。点击「永不休眠」可防止系统因空闲睡眠；「恢复正常」后恢复默认电源策略。"
+            return tr("System Default: Never Sleep is off. Click “Never Sleep” to prevent idle system sleep; “Restore Normal” returns to the default power policy.")
         }
         if displayOffDueToIdle {
-            return "因空闲已关闭显示器；移动鼠标或按键即可唤醒。系统不会进入睡眠。"
+            return tr("The display was turned off due to inactivity. Move the mouse or press a key to wake it; the system stays awake.")
         }
         if smartIdleDisplayOff {
             if idleTimeoutSeconds == 0 {
                 if dimKeyboardOnIdleOff {
-                    return "永不休眠：不因空闲自动熄屏；仅防止系统睡眠。空闲熄屏关闭时不会调键盘背光。"
+                    return tr("Never Sleep: idle display-off is disabled; only system sleep is prevented. Keyboard backlight is not changed while idle display-off is disabled.")
                 }
-                return "永不休眠：不因空闲自动熄屏；仅防止系统睡眠。"
+                return tr("Never Sleep: idle display-off is disabled; only system sleep is prevented.")
             }
             let desc = Self.describeDuration(seconds: idleTimeoutSeconds)
             if dimKeyboardOnIdleOff {
-                return "永不休眠：有操作时保持亮屏。熄屏空闲 \(desc) 后关闭所有显示器；若开启调暗键盘背光，将自动触发约 30 次背光减小。"
+                return trf("Never Sleep: the display stays on while you are active. All displays turn off after %@ of inactivity, and the keyboard backlight is dimmed automatically.", desc)
             }
-            return "永不休眠：有操作时保持亮屏。熄屏空闲 \(desc) 后关闭所有显示器（未调键盘背光）。"
+            return trf("Never Sleep: the display stays on while you are active. All displays turn off after %@ of inactivity without changing the keyboard backlight.", desc)
         }
-        return "保持显示器常亮并防止系统睡眠（经典强制亮屏模式）。"
+        return tr("The display stays on and system sleep is prevented (classic mode).")
     }
 
     private static func describeDuration(seconds: Int) -> String {
-        if seconds == 0 { return "永不" }
-        if seconds < 60 { return "\(seconds) 秒" }
-        if seconds % 3600 == 0 { return "\(seconds / 3600) 小时" }
-        if seconds % 60 == 0 { return "\(seconds / 60) 分钟" }
-        return "\(seconds) 秒"
+        if seconds == 0 { return tr("Never") }
+        if seconds < 60 { return trf("%d sec", seconds) }
+        if seconds % 3600 == 0 { return trf("%d hr", seconds / 3600) }
+        if seconds % 60 == 0 { return trf("%d min", seconds / 60) }
+        return trf("%d sec", seconds)
     }
 
     var statusBadge: (String, Color) {
-        guard isProtectionOn else { return ("系统默认", Color.green) }
-        return displayOffDueToIdle ? ("永不休眠 · 显示器已关", Color.orange) : ("永不休眠", Color.brown)
+        guard isProtectionOn else { return (tr("System Default"), Color.green) }
+        return displayOffDueToIdle
+            ? (tr("Never Sleep · Display Off"), Color.orange)
+            : (tr("Never Sleep"), Color.brown)
     }
 
     func formattedDuration(since start: Date) -> String {
@@ -251,9 +253,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         a.messageText = "KeepAgentAwake"
         let ver = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
-        a.informativeText = "版本 \(ver) (\(build))\n\n仅菜单栏 · 永不休眠 · 键盘背光为模拟按键\n⌘⇧P 永不休眠 / 恢复正常"
+        a.informativeText = trf("Version %@ (%@)\n\nMenu bar only · Never Sleep · Keyboard backlight uses simulated key presses\n⌘⇧P Never Sleep / Restore Normal", ver, build)
         a.alertStyle = .informational
-        a.addButton(withTitle: "好的")
+        a.addButton(withTitle: tr("OK"))
         a.runModal()
     }
 
@@ -384,20 +386,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         let statusText: String
         if isProtectionOn {
-            statusText = displayOffDueToIdle ? "☕ 永不休眠（显示器已关）" : "☕ 永不休眠"
+            statusText = displayOffDueToIdle ? tr("☕ Never Sleep (Display Off)") : tr("☕ Never Sleep")
         } else {
-            statusText = "☀️ 系统默认"
+            statusText = tr("☀️ System Default")
         }
         let statusMenuItem = NSMenuItem(title: statusText, action: nil, keyEquivalent: "")
         statusMenuItem.isEnabled = false
         menu.addItem(statusMenuItem)
 
         if isProtectionOn, let start = startTime {
-            let secs = Int(Date().timeIntervalSince(start))
-            let h = secs / 3600, m = (secs % 3600) / 60
-            var durStr = "⏱ 已运行 "
-            if h > 0 { durStr += "\(h) 小时 " }
-            durStr += "\(m) 分钟"
+            let durStr = trf("⏱ Running %@", formattedDuration(since: start))
             let durItem = NSMenuItem(title: durStr, action: nil, keyEquivalent: "")
             durItem.isEnabled = false
             menu.addItem(durItem)
@@ -405,9 +403,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         menu.addItem(.separator())
 
-        menu.addItem(appMenuItem("打开主窗口", action: #selector(openMainWindow)))
+        menu.addItem(appMenuItem(tr("Open Main Window"), action: #selector(openMainWindow)))
 
-        let toggleTitle = isProtectionOn ? "恢复正常" : "永不休眠"
+        let toggleTitle = isProtectionOn ? tr("Restore Normal") : tr("Never Sleep")
         let toggleItem = appMenuItem(toggleTitle, action: #selector(toggleProtectionMode), keyEquivalent: "p", modifiers: [.command, .shift])
         menu.addItem(toggleItem)
 
@@ -415,32 +413,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         let settingsMenu = NSMenu()
 
-        let tmItem = appMenuItem("⏱ 显示计时器", action: #selector(toggleShowTimer))
+        let tmItem = appMenuItem(tr("⏱ Show Timer"), action: #selector(toggleShowTimer))
         tmItem.state = showTimer ? .on : .off
         settingsMenu.addItem(tmItem)
 
-        let smartItem = appMenuItem("🧠 空闲后自动熄屏（减轻闪烁）", action: #selector(toggleSmartIdle))
+        let smartItem = appMenuItem(tr("🧠 Turn Display Off When Idle"), action: #selector(toggleSmartIdle))
         smartItem.state = smartIdleDisplayOff ? .on : .off
         settingsMenu.addItem(smartItem)
 
-        let settingsItem = NSMenuItem(title: "⚙️ 菜单内设置", action: nil, keyEquivalent: "")
+        let settingsItem = NSMenuItem(title: tr("⚙️ Quick Settings"), action: nil, keyEquivalent: "")
         settingsItem.submenu = settingsMenu
         menu.addItem(settingsItem)
 
         menu.addItem(.separator())
 
-        let sc2 = NSMenuItem(title: "⌘⇧P  永不休眠 / 恢复正常", action: nil, keyEquivalent: "")
+        let sc2 = NSMenuItem(title: tr("⌘⇧P  Never Sleep / Restore Normal"), action: nil, keyEquivalent: "")
         sc2.isEnabled = false
         menu.addItem(sc2)
-        let sc3 = NSMenuItem(title: "⌘⌃⎋  紧急关闭", action: nil, keyEquivalent: "")
+        let sc3 = NSMenuItem(title: tr("⌘⌃⎋  Emergency Off"), action: nil, keyEquivalent: "")
         sc3.isEnabled = false
         menu.addItem(sc3)
 
         menu.addItem(.separator())
 
-        menu.addItem(appMenuItem("💡 使用说明", action: #selector(showHelp)))
+        menu.addItem(appMenuItem(tr("💡 Help"), action: #selector(showHelp)))
         menu.addItem(.separator())
-        let quitItem = appMenuItem("退出 KeepAgentAwake", action: #selector(quitApp), keyEquivalent: "q", modifiers: [.command])
+        let quitItem = appMenuItem(tr("Quit KeepAgentAwake"), action: #selector(quitApp), keyEquivalent: "q", modifiers: [.command])
         menu.addItem(quitItem)
 
         statusItem.menu = menu
@@ -547,10 +545,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         updateIcon()
         notify(
-            title: "永不休眠已开启",
+            title: tr("Never Sleep enabled"),
             body: notificationBodyForStart()
         )
-        print("☕ 永不休眠已开启  smartIdle=\(smartIdleDisplayOff)  idle=\(idleTimeoutSeconds)s")
+        print("☕ Never Sleep enabled  smartIdle=\(smartIdleDisplayOff)  idle=\(idleTimeoutSeconds)s")
     }
 
     private func stopProtection() {
@@ -571,31 +569,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         startTime = nil
         updateIcon()
-        notify(title: "永不休眠已关闭", body: "已恢复电源断言；若曾勾选合盖选项，将尝试 pmset disablesleep 0（可能再次请求管理员密码）。")
-        print("☀️ 永不休眠已停止")
+        notify(
+            title: tr("Never Sleep disabled"),
+            body: tr("Power assertions were released. If lid-close prevention was enabled, the app will try to run pmset disablesleep 0 and may ask for an administrator password again.")
+        )
+        print("☀️ Never Sleep disabled")
     }
 
     private func notificationBodyForStart() -> String {
         var parts: [String] = []
         if smartIdleDisplayOff {
             if idleTimeoutSeconds == 0 {
-                parts.append("已防止系统睡眠；熄屏空闲为「永不」，不会因空闲自动关显示器")
+                parts.append(tr("System sleep is prevented; automatic display-off is set to Never."))
             } else {
-                var s = "已防止系统睡眠；熄屏空闲 \(Self.describeDuration(seconds: idleTimeoutSeconds)) 后将关闭显示器"
+                let duration = Self.describeDuration(seconds: idleTimeoutSeconds)
+                var message = trf("System sleep is prevented; displays will turn off after %@ of inactivity.", duration)
                 if dimKeyboardOnIdleOff {
-                    s += "，并自动降低键盘背光"
+                    message += " " + tr("The keyboard backlight will also be dimmed.")
                 }
-                parts.append(s)
+                parts.append(message)
             }
         } else {
-            parts.append("屏幕将保持常亮，并防止空闲睡眠（经典强制亮屏）")
+            parts.append(tr("The display stays on and idle system sleep is prevented (classic mode)."))
         }
         if keepAwakeOnLidClose {
-            parts.append("若系统尚未处于 disablesleep，将请求管理员密码执行 pmset -a disablesleep 1（关闭系统睡眠）")
+            parts.append(tr("If disablesleep is not already enabled, macOS will ask for an administrator password to run pmset -a disablesleep 1."))
         } else {
-            parts.append("未启用 pmset disablesleep；合盖后系统仍可能睡眠")
+            parts.append(tr("pmset disablesleep is off; the Mac may still sleep when the lid is closed."))
         }
-        return parts.joined(separator: "。") + "。"
+        return parts.joined(separator: " ")
     }
 
     private func applyProtectionPowerPolicy(startIdleMonitor: Bool) {
@@ -605,7 +607,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             applyIdleSystemSleepAssertion()
             if startIdleMonitor { restartIdleMonitoringTimerIfNeeded() }
             if !hasIdleSystemSleepAssertion {
-                print("⚠️ PreventUserIdleSystemSleep 失败，回退 caffeinate -i")
+                print("⚠️ PreventUserIdleSystemSleep failed; falling back to caffeinate -i")
                 startCaffeinate(arguments: ["-i"])
             }
         } else {
@@ -635,8 +637,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             } else {
                 refreshPmsetStateFromSystem()
                 notify(
-                    title: "未应用 pmset disablesleep",
-                    body: "已取消输入密码或执行失败。合盖仍可能睡眠；可稍后在设置中重新开启「合盖时关闭系统睡眠」。"
+                    title: tr("pmset disablesleep was not applied"),
+                    body: tr("Authorization was canceled or the command failed. The Mac may still sleep when the lid is closed; re-enable “Prevent sleep with lid closed” in Settings to try again.")
                 )
             }
         } else {
@@ -645,8 +647,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 print("✅ pmset -a disablesleep 0")
             } else {
                 notify(
-                    title: "未能恢复系统睡眠",
-                    body: "请手动在终端执行：sudo /usr/bin/pmset -a disablesleep 0"
+                    title: tr("System sleep could not be restored"),
+                    body: tr("Run this command manually in Terminal: sudo /usr/bin/pmset -a disablesleep 0")
                 )
             }
             refreshPmsetStateFromSystem()
@@ -741,9 +743,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         )
         hasIdleSystemSleepAssertion = (ret == kIOReturnSuccess)
         if hasIdleSystemSleepAssertion {
-            print("✅ PreventUserIdleSystemSleep 断言已创建")
+            print("✅ PreventUserIdleSystemSleep assertion created")
         } else {
-            print("⚠️ PreventUserIdleSystemSleep 创建失败")
+            print("⚠️ Failed to create PreventUserIdleSystemSleep assertion")
         }
     }
 
@@ -756,7 +758,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func preventDisplayAndSystemSleepClassic() {
-        let reason = "KeepAgentAwake: 防睡眠（经典）" as CFString
+        let reason = "KeepAgentAwake: Classic sleep prevention" as CFString
         let type = "PreventUserIdleDisplaySleep" as CFString
         let ret = IOPMAssertionCreateWithName(
             type,
@@ -766,9 +768,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         )
         hasPreventDisplayAssertion = (ret == kIOReturnSuccess)
         if hasPreventDisplayAssertion {
-            print("✅ PreventUserIdleDisplaySleep 断言已创建")
+            print("✅ PreventUserIdleDisplaySleep assertion created")
         } else {
-            print("⚠️ PreventUserIdleDisplaySleep 失败，回退 caffeinate -d -i")
+            print("⚠️ PreventUserIdleDisplaySleep failed; falling back to caffeinate -d -i")
             startPreventDisplayCaffeinate()
         }
     }
@@ -866,8 +868,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         sleepDisplay()
         updateIcon()
         notify(
-            title: "显示器已因空闲关闭",
-            body: "系统仍保持唤醒。移动鼠标即可点亮屏幕。"
+            title: tr("Display turned off due to inactivity"),
+            body: tr("The system remains awake. Move the mouse or press a key to turn the display back on.")
         )
     }
 
@@ -943,16 +945,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     @objc private func showHelp() {
         let a = NSAlert()
-        a.messageText = "KeepAgentAwake 使用说明"
-        a.informativeText = """
-        • 永不休眠：使用 IOPM 断言防止空闲睡眠；熄屏空闲可选「永不」或定时关显示器。
-        • 键盘背光：空闲熄屏时自动连续触发背光减小（内部固定次数），由系统决定最终亮度。
-        • 合盖：勾选后通过管理员密码执行 pmset -a disablesleep 1；恢复正常时执行 disablesleep 0。
-
-        快捷键：⌘⇧P 永不休眠 / 恢复正常 · ⌘⌃⎋ 紧急关闭
-        """
+        a.messageText = tr("KeepAgentAwake Help")
+        a.informativeText = tr("• Never Sleep: Uses an IOPM assertion to prevent idle system sleep. Idle display-off can be set to Never or a specific delay.\n• Keyboard backlight: Repeatedly simulates the backlight-down key when the display turns off due to inactivity.\n• Lid closed: With permission, runs pmset -a disablesleep 1; Restore Normal runs disablesleep 0.\n\nShortcuts: ⌘⇧P Never Sleep / Restore Normal · ⌘⌃⎋ Emergency Off")
         a.alertStyle = .informational
-        a.addButton(withTitle: "知道了")
+        a.addButton(withTitle: tr("Got It"))
         a.runModal()
     }
 
