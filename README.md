@@ -80,6 +80,7 @@ A `KeepAgentAwake.app.zip` is also attached for anyone who prefers a plain archi
 | **Lid / power** | Optional `pmset -a disablesleep` path for lid-close behavior (requires admin approval; see in-app text). |
 | **Shortcuts** | **⌘⇧P** toggles never-sleep; **⌘⌃⎋** emergency-off while active. |
 | **Menu bar** | **Left click:** if a main window exists, show/hide it; otherwise toggle never-sleep. **Right click:** menu. |
+| **Languages** | English is the default/fallback language; Korean is selected automatically when preferred in macOS. |
 
 The status item reflects the current mode (e.g. system default vs never-sleep) and can show elapsed time.
 
