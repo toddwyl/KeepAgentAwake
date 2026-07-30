@@ -127,6 +127,15 @@ struct MainWindowView: View {
                 .font(.headline)
             Toggle("状态栏显示计时器", isOn: $app.showTimer)
             Divider().padding(.vertical, 4)
+            Toggle(
+                "登录时自动启动 KeepAgentAwake",
+                isOn: Binding(
+                    get: { app.launchAtLoginEnabled },
+                    set: { app.setLaunchAtLoginEnabled($0) }
+                )
+            )
+            Toggle("应用启动时自动开启永不休眠", isOn: $app.enableProtectionOnLaunch)
+                .help("默认关闭。开启后，应用启动时会自动开启永不休眠；为避免意外密码弹窗，自动启动不会修改 pmset disablesleep。")
             Toggle("空闲后自动熄屏（推荐，可减轻屏幕闪烁）", isOn: $app.smartIdleDisplayOff)
                 .help("关闭时使用经典「强制显示器常亮」。开启时可设熄屏空闲时间，含「永不」。")
             HStack {

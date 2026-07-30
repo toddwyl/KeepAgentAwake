@@ -4,6 +4,7 @@ import CoreGraphics
 import SwiftUI
 import UserNotifications
 import IOKit.pwr_mgt
+import ServiceManagement
 
 // MARK: - User defaults
 
@@ -18,6 +19,8 @@ private enum KAKey {
     static let dimKeyboardOnIdleOff = prefix + "dimKeyboardOnIdleOff"
     /// 合盖时通过 `pmset -a disablesleep` 关闭系统睡眠（需管理员密码）
     static let keepAwakeOnLidClose = prefix + "keepAwakeOnLidClose"
+    /// 应用启动时自动开启「永不休眠」
+    static let enableProtectionOnLaunch = prefix + "enableProtectionOnLaunch"
 }
 
 // MARK: - AppDelegate
@@ -63,6 +66,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             applyProtectionPowerPolicy(startIdleMonitor: true)
             syncPmsetDisablesleep()
         }
+    }
+
+    @Published private(set) var launchAtLoginEnabled = false
+    @Published var enableProtectionOnLaunch: Bool = (UserDefaults.standard.object(forKey: KAKey.enableProtectionOnLaunch) as? Bool) ?? false {
+        didSet { UserDefaults.standard.set(enableProtectionOnLaunch, forKey: KAKey.enableProtectionOnLaunch) }
     }
 
     @Published private(set) var isProtectionOn = false
@@ -114,12 +122,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // 仅菜单栏展示，不占用 Dock（与 Info.plist 中 LSUIElement 一致）
         NSApp.setActivationPolicy(.accessory)
         refreshPmsetStateFromSystem()
+        refreshLaunchAtLoginStatus()
         setupNotifications()
         setupStatusBar()
         setupGlobalHotkey()
         setupActivityMonitoring()
         DispatchQueue.main.async {
             NSApp.activate(ignoringOtherApps: true)
+        }
+        if enableProtectionOnLaunch {
+            DispatchQueue.main.async { [weak self] in
+                self?.startProtection(allowAdministratorPrompt: false)
+            }
         }
         print("🚀 KeepAgentAwake 已启动")
     }
@@ -151,6 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let suffixes = [
             "showTimer", "smartIdleDisplayOff", "idleTimeoutSeconds",
             "idleTimeoutMinutes", "dimKeyboardOnIdleOff", "keepAwakeOnLidClose",
+            "enableProtectionOnLaunch",
         ]
         for s in suffixes {
             let ok = oldP + s
@@ -184,6 +199,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return max(0, v)
         }
         return 600
+    }
+
+    private func refreshLaunchAtLoginStatus() {
+        let status = SMAppService.mainApp.status
+        launchAtLoginEnabled = status == .enabled || status == .requiresApproval
+    }
+
+    func setLaunchAtLoginEnabled(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            print("⚠️ 로그인 시 자동 실행 설정 실패: \(error)")
+            notify(
+                title: "로그인 자동 실행 설정 실패",
+                body: "시스템 설정의 로그인 항목에서 KeepAgentAwake를 직접 확인해 주세요."
+            )
+        }
+        refreshLaunchAtLoginStatus()
     }
 
     // MARK: - UI helpers (SwiftUI)
@@ -533,7 +570,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         isProtectionOn ? stopProtection() : startProtection()
     }
 
-    private func startProtection() {
+    private func startProtection(allowAdministratorPrompt: Bool = true) {
         guard !isProtectionOn else { return }
         isProtectionOn = true
         displayOffDueToIdle = false
@@ -541,14 +578,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         lastUserActivity = Date()
 
         applyProtectionPowerPolicy(startIdleMonitor: true)
-        syncPmsetDisablesleep()
+        syncPmsetDisablesleep(allowAdministratorPrompt: allowAdministratorPrompt)
 
         scheduleStatusTimerForCurrentMode()
 
         updateIcon()
         notify(
             title: "永不休眠已开启",
-            body: notificationBodyForStart()
+            body: notificationBodyForStart(allowAdministratorPrompt: allowAdministratorPrompt)
         )
         print("☕ 永不休眠已开启  smartIdle=\(smartIdleDisplayOff)  idle=\(idleTimeoutSeconds)s")
     }
@@ -575,7 +612,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         print("☀️ 永不休眠已停止")
     }
 
-    private func notificationBodyForStart() -> String {
+    private func notificationBodyForStart(allowAdministratorPrompt: Bool = true) -> String {
         var parts: [String] = []
         if smartIdleDisplayOff {
             if idleTimeoutSeconds == 0 {
@@ -591,7 +628,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             parts.append("屏幕将保持常亮，并防止空闲睡眠（经典强制亮屏）")
         }
         if keepAwakeOnLidClose {
-            parts.append("若系统尚未处于 disablesleep，将请求管理员密码执行 pmset -a disablesleep 1（关闭系统睡眠）")
+            if allowAdministratorPrompt {
+                parts.append("若系统尚未处于 disablesleep，将请求管理员密码执行 pmset -a disablesleep 1（关闭系统睡眠）")
+            } else if hasPmsetDisablesleepOn {
+                parts.append("系统已启用 disablesleep，合盖后仍会保持唤醒")
+            } else {
+                parts.append("自动启动时未修改 disablesleep，以免意外弹出管理员密码；如需合盖防睡眠，请手动重新开启保护")
+            }
         } else {
             parts.append("未启用 pmset disablesleep；合盖后系统仍可能睡眠")
         }
@@ -623,12 +666,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// 与「永不休眠 + 合盖」对齐 `pmset -a disablesleep`。
     /// 逻辑位置：本方法 + `runPmsetDisablesleep`。密码弹窗来自 AppleScript `with administrator privileges`；
     /// **每次执行**都会向系统要管理员授权，因此必须先读当前值（`refreshPmsetStateFromSystem`），仅在实际需要 0↔1 时才调用 `runPmsetDisablesleep`。
-    private func syncPmsetDisablesleep() {
+    private func syncPmsetDisablesleep(allowAdministratorPrompt: Bool = true) {
         refreshPmsetStateFromSystem()
 
         let wantOn = isProtectionOn && keepAwakeOnLidClose
         if wantOn == hasPmsetDisablesleepOn { return }
         if wantOn {
+            guard allowAdministratorPrompt else {
+                print("ℹ️ 自动启动时跳过 pmset disablesleep 管理员授权")
+                return
+            }
             if runPmsetDisablesleep(enable: true) {
                 hasPmsetDisablesleepOn = true
                 print("✅ pmset -a disablesleep 1")

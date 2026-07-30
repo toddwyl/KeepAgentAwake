@@ -42,6 +42,7 @@ swiftc -O -o "$MACOS_DIR/$APP_NAME" \
     -framework Combine \
     -framework UserNotifications \
     -framework IOKit \
+    -framework ServiceManagement \
     -parse-as-library \
     KeepAgentAwakeMain.swift \
     KeepAgentAwakeViews.swift \
