@@ -78,6 +78,7 @@ A `KeepAgentAwake.app.zip` is also attached for anyone who prefers a plain archi
 | **Idle display off** | After N seconds/minutes of no input, turn displays off (or set to “never”); any input keeps the screen on. |
 | **Keyboard backlight** | Optionally simulates repeated “brightness down” keys when idle triggers display sleep (effect varies by hardware and OS). |
 | **Lid / power** | Optional `pmset -a disablesleep` path for lid-close behavior (requires admin approval; see in-app text). |
+| **Startup automation** | Optionally launch at login and enable Never Sleep when the app starts. Both settings default to off. |
 | **Shortcuts** | **⌘⇧P** toggles never-sleep; **⌘⌃⎋** emergency-off while active. |
 | **Menu bar** | **Left click:** if a main window exists, show/hide it; otherwise toggle never-sleep. **Right click:** menu. |
 
@@ -114,6 +115,7 @@ You can copy `KeepAgentAwake.app` to `/Applications/` if you like.
 
 - **Automation / Apple Events**: Dimming keyboard backlight may trigger system prompts for controlling other apps or automation — follow what macOS shows.
 - **Administrator password**: AppleScript elevation runs **only when** changing `disablesleep` (or similar) is required to match your settings; the app prefers reading power settings first.
+- **Startup automation**: Launch-at-login uses `SMAppService.mainApp` on macOS 13+. Automatic protection startup does not change `pmset disablesleep`, so it does not unexpectedly show an administrator password prompt. Enable protection manually if lid-close prevention must also be changed.
 - If you used the older **ScreenControl** build, the first launch **migrates** `ScreenControl.*` UserDefaults keys to `KeepAgentAwake.*` when the new key is missing, so preferences are preserved.
 
 ## Repository layout
